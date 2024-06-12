@@ -1,0 +1,9 @@
+id: 1
+name: xxx
+description: xxx
+init: true
+owner: mahiro
+owner_uuid: xxx-xxx-xxx-xxx-xxx
+pos: [0, 0]
+time: 3600
+weather: clear
