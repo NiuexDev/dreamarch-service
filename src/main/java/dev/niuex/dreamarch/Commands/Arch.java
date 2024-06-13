@@ -147,6 +147,10 @@ public class Arch {
                             if (area == null) {
                                 throw new CommandSyntaxException(null, () -> "区域不存在。");
                             }
+//                            if (!area.getOwnerUuid().equals(ctx.getSource().getExecutor().getUniqueId()) &&
+//                                    !ctx.getSource().hasPermission("dreamarch.command.init")) {
+//                                throw new CommandSyntaxException(null, () -> "您没有权限初始化此区域。");
+//                            }
                             area.init(
                                     (unused) -> {
                                         ctx.getSource().getSender().sendPlainMessage("开始初始化区域 [" + area.id + "] " + area.getName() + " 。");
@@ -182,13 +186,7 @@ public class Arch {
                             if (!area.isInit()) {
                                 throw new CommandSyntaxException(null, () -> "区域未初始化。");
                             }
-                            int[] pos = area.getCenterPos();
-                            ctx.getSource().getExecutor().teleportAsync(new Location(
-                                    ctx.getSource().getExecutor().getWorld(),
-                                    pos[0],
-                                    ctx.getSource().getExecutor().getWorld().getHighestBlockYAt(pos[0], pos[1])+1,
-                                    pos[1]
-                            ));
+                            ctx.getSource().getExecutor().teleportAsync(area.getSpawnPos());
                             return Command.SINGLE_SUCCESS;
                         })
                 )

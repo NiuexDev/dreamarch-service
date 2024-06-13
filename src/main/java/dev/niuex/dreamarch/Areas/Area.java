@@ -27,6 +27,7 @@ public class Area {
     private int time;
     private WeatherType weather;
     private Biome biome;
+    private int[] spawnPos;
 
     private boolean generate = false;
 
@@ -43,7 +44,8 @@ public class Area {
             int[] pos,
             int time,
             WeatherType weather,
-            Biome biome
+            Biome biome,
+            int[] spawnPos
     ) {
         this.id = id;
         this.name = name;
@@ -55,6 +57,7 @@ public class Area {
         this.time = time;
         this.weather = weather;
         this.biome = biome;
+        this.spawnPos = spawnPos;
     }
 
     public Area() {
@@ -78,11 +81,11 @@ public class Area {
                 case "classics":
                     this.layer = "64;1*BEDROCK,2*DIRT,1*GRASS_BLOCK";
                     break;
-                case "":
                 case "air":
                 case "void":
                     this.layer = "0;0*AIR";
                     break;
+                case "":
                 case "normal":
                     this.layer = "0;67*DIRT,1*GRASS_BLOCK";
                     break;
@@ -90,33 +93,29 @@ public class Area {
                     this.layer = "0;68*WATER";
             }
 
-            int height = Integer.parseInt(this.layer.split(";")[0]);
-            List<Map<String, Object>> layerData = new ArrayList<>();
+            int baseHeight = Integer.parseInt(this.layer.split(";")[0]);
+            Layer[] layerData = Arrays.stream(this.layer.split(";")[1].split(",")).map(Layer::new).toArray(Layer[]::new);
 
-            // 分割layer字符串去除高度部分，然后遍历剩余的block信息
-            String[] blocksInfo = this.layer.split(";")[1].split(",");
-            for (String blockInfo : blocksInfo) {
-                // 分割每个block的信息为高度和BLOCK_ID
-                String[] parts = blockInfo.split("\\*");
-                Map<String, Object> blockData = new HashMap<>();
-                blockData.put("height", Integer.parseInt(parts[0]));
-                blockData.put("id", Material.valueOf(parts[1].toUpperCase()));
-                // 将单个块的信息添加到layers列表中
-                layerData.add(blockData);
-            }
             this.generate = true;
             AtomicInteger runCount = new AtomicInteger();
-            new FlatChunkGenerator(this.pos[0],
-                    this.pos[1],
-                    size-1,
-                    height,
+            new FlatGenerator(
+                    size - 1,
+                    baseHeight,
                     layerData,
-                    this.biome,
                     (unused) -> {
                         runCount.getAndIncrement();
-                        if (runCount.get() == (size-1)*(size-1)) {
+                        if (runCount.get() == (size - 1) * (size - 1)) {
                             finish.call(null);
                             plugin.logger.info("建筑区域[" + this.id + "]初始化完成。");
+                            this.spawnPos = new int[]{
+                                    this.pos[0] * 16 + (size - 1) * 16 / 2,
+                                    plugin.getServer().getWorld("world")
+                                            .getHighestBlockYAt(
+                                                this.pos[0] * 16 + (size - 1) * 16 / 2,
+                                                this.pos[1] * 16 + (size - 1) * 16 / 2
+                                            ) + 1,
+                                    this.pos[1] * 16 + (size - 1) * 16 / 2
+                            };
                             this.init = true;
                         }
                         every.call(runCount.get());
@@ -161,11 +160,21 @@ public class Area {
     public int[] getPos() {
         return pos;
     }
-    public int[] getCenterPos() {
-        return new int[]{
-                this.pos[0] * 16 + (size-1) * 16 / 2,
-                this.pos[1] * 16 + (size-1) * 16 / 2
-        };
+    public Location getSpawnPos() {
+        return new Location(
+                plugin.getServer().getWorld("world"),
+                this.spawnPos[0],
+                this.spawnPos[1],
+                this.spawnPos[2]
+        );
+    }
+    public int[] getSpawnPosValue() {
+        return this.spawnPos;
+    }
+    public void setSpawnPos(int x, int y, int z) {
+        this.spawnPos[0] = x;
+        this.spawnPos[1] = y;
+        this.spawnPos[2] = z;
     }
     public int getTime() {
         return time;
@@ -185,59 +194,70 @@ public class Area {
     }
     public String getLayer() { return layer; }
     public void setLayer(String layer) { this.layer = layer; }
-}
-
-class FlatChunkGenerator {
 
 
-    private static final DreamArch plugin = DreamArch.instance;
+    class FlatGenerator {
+        final int baseHeight;
+        final Layer[] layerData;
+        int x = pos[0];
+        int z = pos[1];
 
-    public FlatChunkGenerator(
-            int x,
-            int z,
-            int size,
-            int height,
-            List<Map<String, Object>> layer,
-            Biome biome,
-            Callback<Void, Void> callback
-    ) {
-        plugin.logger.info("开始生成 [ " + x + ", " + z +" ] 至 [ " + (x+size) + ", " + (z+size) +" ] 的建筑区域...");
+        public FlatGenerator(
+                int size,
+                int baseHeight,
+                Layer[] layer,
+                Callback<Void, Void> callback
+        ) {
+            this.baseHeight = baseHeight - 64;
+            this.layerData = layer;
 
-        long delay = 0L;
-        for (int currentX = x; currentX < x + size; currentX++) {
-            for (int currentZ = z; currentZ < z + size; currentZ++) {
-                BukkitScheduler scheduler = plugin.getServer().getScheduler();
-                Chunk chunk = plugin.getServer().getWorld("world").getChunkAt(currentX, currentZ);
-                scheduler.runTaskLater(plugin, () -> {
-                    generateChunk(chunk, height, layer, biome);
-                    callback.call(null);
-                },  delay);
-                delay+=3;
+            plugin.logger.info("开始生成 [ " + x + ", " + z +" ] 至 [ " + (x+size) + ", " + (z+size) +" ] 的建筑区域...");
+
+            long delay = 0L;
+            BukkitScheduler scheduler = plugin.getServer().getScheduler();
+            for (int currentX = x; currentX < x + size; currentX++) {
+                for (int currentZ = z; currentZ < z + size; currentZ++) {
+                    Chunk chunk = plugin.getServer().getWorld("world").getChunkAt(currentX, currentZ);
+                    scheduler.runTaskLater(plugin, () -> {
+                        generateChunk(chunk);
+                        callback.call(null);
+                    },  delay);
+                    delay+=3;
+                }
             }
         }
-    }
-    private void generateChunk(Chunk chunk, int baseHeight, List<Map<String, Object>> layerData, Biome biome) {
+        private void generateChunk(Chunk chunk) {
+            int baseHeight = this.baseHeight;
 
-        int baseY = -64 + baseHeight;
-        for (Map<String, Object> layer : layerData) {
-            int height = (int) layer.get("height");
-            Material id = (Material) layer.get("id");
-            for (int y = 0; y < height; y++) {
+            for (Layer layer : layerData) {
+                for (int y = 0; y < layer.height; y++) {
+                    for (int x = 0; x < 16; x++) {
+                        for (int z = 0; z < 16; z++) {
+                            chunk.getBlock(x, baseHeight + y, z).setType(layer.id);
+                        }
+                    }
+                }
+                baseHeight +=  layer.height;
+
+            }
+            for (int y = -64; y < 319; y++) {
                 for (int x = 0; x < 16; x++) {
                     for (int z = 0; z < 16; z++) {
-                        chunk.getBlock(x, baseY + y, z).setType(id);
+                        chunk.getBlock(x, y, z).setBiome(biome);
                     }
                 }
             }
-            baseY +=  height;
+        }
+    }
+}
 
-        }
-        for (int y = -64; y < 319; y++) {
-            for (int x = 0; x < 16; x++) {
-                for (int z = 0; z < 16; z++) {
-                    chunk.getBlock(x, y, z).setBiome(biome);
-                }
-            }
-        }
+class Layer {
+    public Material id;
+    public int height;
+
+    public Layer(String layer) {
+        String[] parts = layer.split("\\*");
+        height = Integer.parseInt(parts[0]);
+        id = Material.valueOf(parts[1].toUpperCase());
     }
 }

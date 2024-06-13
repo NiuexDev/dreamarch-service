@@ -43,7 +43,8 @@ public class AreaList {
                                 areaConfig.getIntegerList("pos").stream().mapToInt(Integer::intValue).toArray(), // 转换int列表为数组
                                 areaConfig.getInt("time"),
                                 areaConfig.getString("weather") == null ? null : WeatherType.valueOf(areaConfig.getString("weather")),
-                                areaConfig.getString("biome") == null ? null : Biome.valueOf(areaConfig.getString("biome"))
+                                areaConfig.getString("biome") == null ? null : Biome.valueOf(areaConfig.getString("biome")),
+                                areaConfig.getIntegerList("spawnPos").stream().mapToInt(Integer::intValue).toArray() // 转换int列表为数组
                         ));
                     });
 
@@ -105,6 +106,7 @@ public class AreaList {
         areaConfig.set("time", area.getTime());
         areaConfig.set("weather", area.getWeather() == null ? null : area.getWeather().toString());
         areaConfig.set("biome", area.getBiome() == null ? null : area.getBiome().toString());
+        areaConfig.set("spawnPos", area.getSpawnPosValue());
 
         try {
             areaConfig.save(areaFile);
