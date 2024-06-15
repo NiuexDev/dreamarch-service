@@ -7,8 +7,8 @@ import org.bukkit.*;
 import org.bukkit.block.Biome;
 import org.bukkit.scheduler.BukkitScheduler;
 
-//import javax.security.auth.callback.Callback;
-import java.util.*;
+import java.util.Arrays;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class Area {
@@ -27,7 +27,7 @@ public class Area {
     private int time;
     private WeatherType weather;
     private Biome biome;
-    private int[] spawnPos;
+    private double[] spawnPos;
 
     private boolean generate = false;
 
@@ -45,7 +45,7 @@ public class Area {
             int time,
             WeatherType weather,
             Biome biome,
-            int[] spawnPos
+            double[] spawnPos
     ) {
         this.id = id;
         this.name = name;
@@ -68,65 +68,69 @@ public class Area {
 
     public void init(Callback<Void, Void> start, Callback<Void, Integer> every, Callback<Void, Void> finish) throws CommandSyntaxException {
         if (this.init) {
-            throw new CommandSyntaxException(null, () -> "区域已初始化。");
+            throw new CommandSyntaxException(null, () -> "建筑区域已初始化。");
         }
         if (this.generate) {
-            throw new CommandSyntaxException(null, () -> "区域正在初始化。");
+            throw new CommandSyntaxException(null, () -> "建筑区域正在初始化。");
         }
         if (this.biome == null) {
-            throw new CommandSyntaxException(null, () -> "区域群系未设置。");
+            throw new CommandSyntaxException(null, () -> "建筑区域群系未设置。");
         }
+
+        switch(this.layer) {
+            case "classics":
+                this.layer = "64;1*BEDROCK,2*DIRT,1*GRASS_BLOCK";
+                break;
+            case "air":
+            case "void":
+                this.layer = "0;0*AIR";
+                break;
+            case "":
+            case "normal":
+                this.layer = "0;67*DIRT,1*GRASS_BLOCK";
+                break;
+            case "water":
+                this.layer = "0;68*WATER";
+        }
+
+        int baseHeight;
+        Layer[] layerData;
+
         try {
-            switch(this.layer) {
-                case "classics":
-                    this.layer = "64;1*BEDROCK,2*DIRT,1*GRASS_BLOCK";
-                    break;
-                case "air":
-                case "void":
-                    this.layer = "0;0*AIR";
-                    break;
-                case "":
-                case "normal":
-                    this.layer = "0;67*DIRT,1*GRASS_BLOCK";
-                    break;
-                case "water":
-                    this.layer = "0;68*WATER";
-            }
-
-            int baseHeight = Integer.parseInt(this.layer.split(";")[0]);
-            Layer[] layerData = Arrays.stream(this.layer.split(";")[1].split(",")).map(Layer::new).toArray(Layer[]::new);
-
-            this.generate = true;
-            AtomicInteger runCount = new AtomicInteger();
-            new FlatGenerator(
-                    size - 1,
-                    baseHeight,
-                    layerData,
-                    (unused) -> {
-                        runCount.getAndIncrement();
-                        if (runCount.get() == (size - 1) * (size - 1)) {
-                            finish.call(null);
-                            plugin.logger.info("建筑区域[" + this.id + "]初始化完成。");
-                            this.spawnPos = new int[]{
-                                    this.pos[0] * 16 + (size - 1) * 16 / 2,
-                                    plugin.getServer().getWorld("world")
-                                            .getHighestBlockYAt(
-                                                this.pos[0] * 16 + (size - 1) * 16 / 2,
-                                                this.pos[1] * 16 + (size - 1) * 16 / 2
-                                            ) + 1,
-                                    this.pos[1] * 16 + (size - 1) * 16 / 2
-                            };
-                            this.init = true;
-                        }
-                        every.call(runCount.get());
-                        return null;
-                    }
-            );
-            start.call(null);
-            plugin.logger.info("开始初始化建筑区域[" + this.id + "]。");
+            baseHeight = Integer.parseInt(this.layer.split(";")[0]);
+            layerData = Arrays.stream(this.layer.split(";")[1].split(",")).map(Layer::new).toArray(Layer[]::new);
         } catch (Throwable e) {
             throw new CommandSyntaxException( null, () -> "layer未设置或格式错误。");
         }
+
+        this.generate = true;
+        AtomicInteger runCount = new AtomicInteger();
+        new FlatGenerator(
+                size - 1,
+                baseHeight,
+                layerData,
+                (unused) -> {
+                    runCount.getAndIncrement();
+                    if (runCount.get() == (size - 1) * (size - 1)) {
+                        finish.call(null);
+                        plugin.logger.info("建筑区域[" + this.id + "]初始化完成。");
+                        this.spawnPos = new double[] {
+                                this.pos[0] * 16 + (size - 1) * 8,
+                                plugin.getServer().getWorld("world")
+                                        .getHighestBlockYAt(
+                                            this.pos[0] * 16 + (size - 1) * 16 / 2,
+                                            this.pos[1] * 16 + (size - 1) * 16 / 2
+                                        ) + 1,
+                                this.pos[1] * 16 + (size - 1) * 8
+                        };
+                        this.init = true;
+                    }
+                    every.call(runCount.get());
+                    return null;
+                }
+        );
+        start.call(null);
+        plugin.logger.info("开始初始化建筑区域[" + this.id + "]。");
     }
 
     public boolean isInit() {
@@ -168,22 +172,24 @@ public class Area {
                 this.spawnPos[2]
         );
     }
-    public int[] getSpawnPosValue() {
+    public double[] getSpawnPosValue() {
         return this.spawnPos;
     }
-    public void setSpawnPos(int x, int y, int z) {
-        this.spawnPos[0] = x;
-        this.spawnPos[1] = y;
-        this.spawnPos[2] = z;
+    public void setSpawnPos(Location location) {
+        this.spawnPos = new double[] {
+                location.getX(),
+                location.getY(),
+                location.getZ()
+        };
     }
     public int getTime() {
-        return time;
+        return this.time;
     }
     public void setTime(int time) {
         this.time = time;
     }
     public WeatherType getWeather() {
-        return weather;
+        return this.weather;
     }
     public void setWeather(WeatherType weather) {
         this.weather = weather;

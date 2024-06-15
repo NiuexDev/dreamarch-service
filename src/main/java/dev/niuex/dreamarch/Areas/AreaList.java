@@ -44,7 +44,7 @@ public class AreaList {
                                 areaConfig.getInt("time"),
                                 areaConfig.getString("weather") == null ? null : WeatherType.valueOf(areaConfig.getString("weather")),
                                 areaConfig.getString("biome") == null ? null : Biome.valueOf(areaConfig.getString("biome")),
-                                areaConfig.getIntegerList("spawnPos").stream().mapToInt(Integer::intValue).toArray() // 转换int列表为数组
+                                areaConfig.getDoubleList("spawnPos").stream().mapToDouble(Double::doubleValue).toArray() // 转换为double数组（double[]）
                         ));
                     });
 
@@ -56,7 +56,7 @@ public class AreaList {
         count = areaList.size();
 
         plugin.logger.info("已加载" + count + "个建筑区域。");
-        areaList.forEach(area -> plugin.logger.info("[" + area.id + "] " + area.getName()));
+        areaList.forEach(area -> plugin.logger.info("[" + area.id + "]" + area.getName()));
 
         saveAllDelay();
     }
@@ -110,7 +110,7 @@ public class AreaList {
 
         try {
             areaConfig.save(areaFile);
-            plugin.logger.info("[" + area.id + "] " + area.getName() + " 已保存。");
+            plugin.logger.info("[" + area.id + "]" + area.getName() + " 已保存。");
         }
         catch (IOException e) {
             plugin.logger.severe("无法保存区域文件：" + e.getMessage() + "。");
@@ -123,6 +123,7 @@ public class AreaList {
         indexConfig.set("index", index);
         try {
             indexConfig.save(indexFile);
+            plugin.logger.info("索引已保存。");
         } catch (IOException e) {
             plugin.logger.severe("无法保存索引文件：" + e.getMessage() + "。");
         }
@@ -136,18 +137,12 @@ public class AreaList {
     }
 
     public static void saveAllDelay() {
-        new Thread(() -> {
-            while (true) {
-                try {
-                    Thread.sleep(300000);
-                    plugin.logger.info("保存所有区域中。");
-                    saveAll();
-                    plugin.logger.info("保存完毕。");
-                } catch (InterruptedException e) {
-//                    plugin.logger.
-                    e.printStackTrace();
-                }
-            }
-        }).start();
+//        int delay = 20 * 5; // 初始延迟5秒（20ticks/秒）
+        int period = 20 * 300; // 每5分钟执行一次（300秒）
+        plugin.getServer().getScheduler().runTaskTimer(plugin, () -> {
+            plugin.getLogger().info("保存所有区域中。");
+            saveAll();
+            plugin.getLogger().info("保存完毕。");
+        }, period, period);;
     }
 }

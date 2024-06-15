@@ -3,3 +3,11 @@ version: '${project.version}'
 main: dev.niuex.dreamarch.DreamArch
 api-version: '1.20'
 load: STARTUP
+permissions :
+  dreamarch.command.arch.admin:
+    default: false
+  dreamarch.command.vote.admin:
+    default: false
+  dreamarch.area.admin:
+    default: false
+

@@ -1,0 +1,332 @@
+package dev.niuex.dreamarch.Commands;
+
+import com.mojang.brigadier.Command;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
+import com.mojang.brigadier.arguments.StringArgumentType;
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import com.mojang.brigadier.tree.LiteralCommandNode;
+import dev.niuex.dreamarch.Areas.AreaList;
+import dev.niuex.dreamarch.Areas.PlayerArea;
+import dev.niuex.dreamarch.DreamArch;
+import io.papermc.paper.command.brigadier.CommandSourceStack;
+import io.papermc.paper.command.brigadier.Commands;
+import io.papermc.paper.command.brigadier.argument.ArgumentTypes;
+import io.papermc.paper.plugin.lifecycle.event.LifecycleEventManager;
+import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
+import io.papermc.paper.entity.TeleportFlag;
+import net.kyori.adventure.audience.Audience;
+import net.kyori.adventure.text.Component;
+import org.bukkit.Location;
+import org.bukkit.WeatherType;
+import org.bukkit.block.Biome;
+import org.bukkit.entity.Entity;
+import org.bukkit.entity.EntityType;
+import org.bukkit.entity.Player;
+import org.bukkit.event.player.PlayerTeleportEvent;
+import org.bukkit.plugin.Plugin;
+import com.mojang.brigadier.context.CommandContext;
+import dev.niuex.dreamarch.Areas.Area;
+
+import java.util.List;
+
+import static dev.niuex.dreamarch.Areas.PlayerArea.getTempId;
+import static dev.niuex.dreamarch.Areas.PlayerArea.setPlayerTimeWeather;
+
+/**
+ *
+ * arch
+ *  list
+ *  create
+ *  tp
+ *  set
+ *    name
+ *      attribute
+ *          value
+ *
+ * */
+
+@SuppressWarnings("UnstableApiUsage")
+public class ArchCommand {
+
+    private static final DreamArch plugin = DreamArch.instance;
+
+    public static void init() {
+        LiteralCommandNode<CommandSourceStack> listCommand = Commands.literal("list")
+                .executes(ctx -> {
+                    ctx.getSource().getSender().sendPlainMessage("已加载" + AreaList.getCount() + "个区域。");
+                    AreaList.getAreaList().forEach(area -> ctx.getSource().getSender().sendPlainMessage("[" + area.id + "]" + area.getName()));
+                    return Command.SINGLE_SUCCESS;
+                })
+                .build();
+
+        LiteralCommandNode<CommandSourceStack> initCommand = Commands.literal("init")
+                .then(Commands.argument("id", IntegerArgumentType.integer())
+                        .executes(ctx -> {
+                            Area area = AreaList.getArea(ctx.getArgument("id", Integer.class));
+                            if (area == null) {
+                                throw new CommandSyntaxException(null, () -> "区域不存在。");
+                            }
+                            hasPermission(ctx, area);
+                            area.init(
+                                    (unused) -> {
+                                        ctx.getSource().getSender().sendPlainMessage("开始初始化区域 [" + area.id + "]" + area.getName() + " 。");
+                                        return null;
+                                    },
+                                    (n) -> {
+                                        double rate = (double) n / ((Area.size - 1) * (Area.size - 1));
+                                        int progressChars = (int) Math.round(rate * 17);
+                                        StringBuilder progress = new StringBuilder();
+                                        for (int i = 0; i < 17; i++) {
+                                            progress.append(i < progressChars ? "=" : "-");
+                                        }
+                                        Audience.audience(ctx.getSource().getSender()).sendActionBar(Component.text("正在初始化 [" + progress + "]  " + (int) (rate*100) + "%"));
+                                        return null;
+                                    },
+                                    (unused) -> {
+                                        ctx.getSource().getSender().sendPlainMessage("[" + area.id + "]" + area.getName() + "已初始化。");
+                                        return null;
+                                    }
+                            );
+                            return Command.SINGLE_SUCCESS;
+                        })
+                        .build()
+                )
+                .build();
+
+        LiteralCommandNode<CommandSourceStack> tpCommand = Commands.literal("tp")
+                .then(Commands.argument("id", IntegerArgumentType.integer())
+                        .executes(ctx -> {
+                            isPlayer(ctx);
+                            Area area = AreaList.getArea(ctx.getArgument("id", Integer.class));
+                            if (area == null) {
+                                throw new CommandSyntaxException(null, () -> "区域不存在。");
+                            }
+                            if (!area.isInit()) {
+                                throw new CommandSyntaxException(null, () -> "区域未初始化。");
+                            }
+                            Player player = plugin.getServer().getPlayer(ctx.getSource().getExecutor().getUniqueId());
+                            Location location = area.getSpawnPos();
+                            location.setPitch(player.getPitch());
+                            location.setYaw(player.getYaw());
+                            player.teleportAsync(location, PlayerTeleportEvent.TeleportCause.COMMAND, TeleportFlag.Relative.YAW, TeleportFlag.Relative.PITCH);
+                            PlayerArea.Enter(player, area);
+                            return Command.SINGLE_SUCCESS;
+                        })
+                        .build()
+                )
+                .build();
+
+        LiteralCommandNode<CommandSourceStack> setCommand = Commands.literal("set")
+                .then(Commands.argument("id", IntegerArgumentType.integer())
+                        .then(Commands.literal("name")
+                                .then(Commands.argument("value", StringArgumentType.string())
+                                        .executes(ctx -> {
+                                            Area area = getArea(ctx);
+                                            hasPermission(ctx, area);
+                                            area.setName(ctx.getArgument("value", String.class));
+                                            ctx.getSource().getSender().sendPlainMessage("设置成功。");
+                                            return Command.SINGLE_SUCCESS;
+                                        })
+                                        .build()
+                                )
+                                .build()
+                        )
+                        .then(Commands.literal("description")
+                                .then(Commands.argument("value", StringArgumentType.string())
+                                        .executes(ctx -> {
+                                            Area area = getArea(ctx);
+                                            hasPermission(ctx, area);
+                                            area.setDescription(ctx.getArgument("value", String.class));
+                                            ctx.getSource().getSender().sendPlainMessage("设置成功。");
+                                            return Command.SINGLE_SUCCESS;
+                                        })
+                                        .build()
+                                )
+                                .build()
+                        )
+                        .then(Commands.literal("layer")
+                                .then(Commands.argument("value", StringArgumentType.string())
+                                        .executes(ctx -> {
+                                            Area area = getArea(ctx);
+                                            hasPermission(ctx, area);
+                                            area.setLayer(ctx.getArgument("value", String.class));
+                                            ctx.getSource().getSender().sendPlainMessage("设置成功。");
+                                            return Command.SINGLE_SUCCESS;
+                                        })
+                                        .build()
+                                )
+                                .build()
+                        )
+                        .then(Commands.literal("time")
+                                .then(Commands.argument("value", ArgumentTypes.time())
+                                        .executes(ctx -> {
+                                            isPlayer(ctx);
+                                            Area area = getArea(ctx);
+                                            hasPermission(ctx, area);
+                                            area.setTime(ctx.getArgument("value", Integer.class));
+                                            plugin.getServer().getOnlinePlayers().forEach(player -> {
+                                                if (getTempId(player.getChunk()) == area.id) {
+                                                    setPlayerTimeWeather(player, area);
+                                                }
+                                            });
+                                            ctx.getSource().getSender().sendPlainMessage("设置成功。");
+                                            return Command.SINGLE_SUCCESS;
+                                        })
+                                        .build()
+                                )
+                                .build()
+                        )
+                        .then(Commands.literal("weather")
+                                .then(Commands.argument("value", StringArgumentType.string())
+                                        .executes(ctx -> {
+                                            isPlayer(ctx);
+                                            Area area = getArea(ctx);
+                                            hasPermission(ctx, area);
+                                            try {
+                                                area.setWeather(WeatherType.valueOf(ctx.getArgument("value", String.class).toUpperCase()));
+                                                plugin.getServer().getOnlinePlayers().forEach(player -> {
+                                                    if (getTempId(player.getChunk()) == area.id) {
+                                                        setPlayerTimeWeather(player, area);
+                                                    }
+                                                });
+                                            } catch (Exception e) {
+                                                throw new CommandSyntaxException(null, () -> "天气错误。");
+                                            }
+                                            ctx.getSource().getSender().sendPlainMessage("设置成功。");
+                                            return Command.SINGLE_SUCCESS;
+                                        })
+                                        .build()
+                                )
+                                .build()
+                        )
+                        .then(Commands.literal("biome")
+                                .then(Commands.argument("value", StringArgumentType.string())
+                                        .executes(ctx -> {
+                                            Area area = getArea(ctx);
+                                            hasPermission(ctx, area);
+                                            try {
+                                                area.setBiome(Biome.valueOf(ctx.getArgument("value", String.class).toUpperCase()));
+                                            } catch (Exception e) {
+                                                throw new CommandSyntaxException(null, () -> "群系错误。");
+                                            }
+                                            ctx.getSource().getSender().sendPlainMessage("设置成功。");
+                                            return Command.SINGLE_SUCCESS;
+                                        })
+                                        .build()
+                                )
+                                .build()
+                        )
+                        .then(Commands.literal("spawnpos")
+                                .executes(ctx -> {
+                                    isPlayer(ctx);
+                                    Location location = ctx.getSource().getExecutor().getLocation();
+                                    Area area = getArea(ctx);
+                                    hasPermission(ctx, area);
+                                    if (getTempId(location.getChunk()) != area.id) {
+                                        throw new CommandSyntaxException(null, () -> "不应该设置在建筑区域外。");
+                                    }
+                                    area.setSpawnPos(location);
+                                    ctx.getSource().getSender().sendPlainMessage("设置成功。");
+                                    return Command.SINGLE_SUCCESS;
+                                })
+                                .build()
+                        )
+                        .build()
+                )
+                .build();
+
+        LiteralCommandNode<CommandSourceStack> command = Commands.literal("arch")
+                .then(createCommand)
+                .then(listCommand)
+                .then(initCommand)
+                .then(tpCommand)
+                .then(setCommand)
+                .build();
+
+        LifecycleEventManager<Plugin> manager = plugin.getLifecycleManager();
+        manager.registerEventHandler(LifecycleEvents.COMMANDS, event -> {
+            final Commands commands = event.registrar();
+            commands.register(command, "创建和管理建筑", List.of("architecture", "建筑", "jz"));
+        });
+    }
+
+    private static void hasPermission(CommandContext<CommandSourceStack> ctx, Area area) throws CommandSyntaxException {
+        if (
+                !ctx.getSource().getSender().hasPermission("dreamarch.command.arch.admin") &&
+                !area.getOwnerUuid().equals(ctx.getSource().getExecutor().getUniqueId())
+        ) {
+            throw new CommandSyntaxException(null, () -> "这不是您创建的建筑区域。");
+        }
+    }
+
+    private static Area getArea(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+        Area area = AreaList.getArea(ctx.getArgument("id", Integer.class));
+        if (area == null) {
+            throw new CommandSyntaxException(null, () -> "区域不存在。");
+        }
+        return area;
+    }
+
+    private static void isPlayer(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+        CommandSourceStack source = ctx.getSource();
+        if (ctx.getSource().getExecutor() == null || ctx.getSource().getExecutor().getType() != EntityType.PLAYER) {
+            throw new CommandSyntaxException(null, () -> "命令应该由玩家执行");
+        }
+    }
+
+    private static final LiteralCommandNode<CommandSourceStack> createCommand = Commands.literal("create")
+            .executes(ctx -> createCommandRunner(0, ctx))
+
+                    .then(Commands.argument("name", StringArgumentType.string())
+                    .then(Commands.argument("description", StringArgumentType.string())
+                    .executes(ctx -> createCommandRunner(1, ctx))
+
+                            .then(Commands.argument("layer", StringArgumentType.string())
+                            .then(Commands.argument("biome", StringArgumentType.string())
+                            .executes(ctx -> createCommandRunner(2, ctx))
+
+                                    .then(Commands.argument("time", ArgumentTypes.time())
+                                    .then(Commands.argument("weather", StringArgumentType.string())
+                                    .executes(ctx -> createCommandRunner(3, ctx))
+                                    .build())
+                                    .build())
+                            .build())
+                            .build())
+                    .build())
+                    .build())
+            .build();
+
+    private static int createCommandRunner(int step, CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+        isPlayer(ctx);
+        Area area = new Area();
+        Entity executor = ctx.getSource().getExecutor();
+
+        switch (step) {
+            case 3:
+                area.setTime(ctx.getArgument("time", Integer.class));
+                try {
+                    area.setWeather(WeatherType.valueOf(ctx.getArgument("weather", String.class).toUpperCase()));
+                } catch (Exception e) {
+                    ctx.getSource().getSender().sendPlainMessage("天气格式有误，天气未设置成功。");
+                }
+            case 2:
+                area.setLayer(ctx.getArgument("layer", String.class));
+                try {
+                    area.setBiome(Biome.valueOf(ctx.getArgument("biome", String.class).toUpperCase()));
+                } catch (Exception e) {
+                    ctx.getSource().getSender().sendPlainMessage("群系格式有误，群系未设置成功。");
+                }
+            case 1:
+                String name = ctx.getArgument("name", String.class);
+                String description = ctx.getArgument("description", String.class);
+                area.setName(name);
+                area.setDescription(description);
+            case 0:
+                area.setOwner(executor.getName());
+                area.setOwnerUuid(executor.getUniqueId());
+        }
+
+        ctx.getSource().getExecutor().sendPlainMessage("已创建区域 [" + area.id + "]" + area.getName());
+        return Command.SINGLE_SUCCESS;
+    }
+}
