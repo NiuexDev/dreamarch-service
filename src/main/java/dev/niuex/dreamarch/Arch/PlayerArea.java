@@ -1,13 +1,11 @@
-package dev.niuex.dreamarch.Areas;
+package dev.niuex.dreamarch.Arch;
 
 import dev.niuex.dreamarch.DreamArch;
 import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.Style;
 import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.text.minimessage.MiniMessage;
-import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import net.kyori.adventure.title.Title;
 import org.bukkit.Chunk;
 import org.bukkit.entity.Player;
@@ -70,8 +68,8 @@ public class PlayerArea {
     public static int getTempId(Chunk chunk) {
         int x = chunk.getX();
         int z = chunk.getZ();
-        if ( x<0 || z<0 || z>23 || x % 25 == 24) return 0;
-        return x/25;
+        if ( x<0 || z<0 || z>Area.size-2 || x % Area.size == Area.size-1) return 0;
+        return x/Area.size;
     }
 
 

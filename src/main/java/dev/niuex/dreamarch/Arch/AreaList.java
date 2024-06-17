@@ -1,4 +1,4 @@
-package dev.niuex.dreamarch.Areas;
+package dev.niuex.dreamarch.Arch;
 
 import dev.niuex.dreamarch.DreamArch;
 import org.bukkit.WeatherType;
@@ -113,7 +113,7 @@ public class AreaList {
             plugin.logger.info("[" + area.id + "]" + area.getName() + " 已保存。");
         }
         catch (IOException e) {
-            plugin.logger.severe("无法保存区域文件：" + e.getMessage() + "。");
+            plugin.logger.severe("无法保存建筑区域文件：" + e.getMessage() + "。");
         }
     }
 
@@ -140,7 +140,7 @@ public class AreaList {
 //        int delay = 20 * 5; // 初始延迟5秒（20ticks/秒）
         int period = 20 * 300; // 每5分钟执行一次（300秒）
         plugin.getServer().getScheduler().runTaskTimer(plugin, () -> {
-            plugin.getLogger().info("保存所有区域中。");
+            plugin.getLogger().info("保存所有建筑区域中。");
             saveAll();
             plugin.getLogger().info("保存完毕。");
         }, period, period);;

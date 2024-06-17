@@ -8,6 +8,3 @@ permissions :
     default: false
   dreamarch.command.vote.admin:
     default: false
-  dreamarch.area.admin:
-    default: false
-

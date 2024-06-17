@@ -1,10 +1,11 @@
 package dev.niuex.dreamarch;
 
-import dev.niuex.dreamarch.Areas.AreaList;
-import dev.niuex.dreamarch.Commands.ArchCommand;
-import dev.niuex.dreamarch.Events.PlayerJoinListener;
-import dev.niuex.dreamarch.Commands.VoteCommand;
-import dev.niuex.dreamarch.Events.PlayerMovementListener;
+import dev.niuex.dreamarch.Arch.AreaList;
+import dev.niuex.dreamarch.Arch.Vote;
+import dev.niuex.dreamarch.Command.ArchCommand;
+import dev.niuex.dreamarch.Event.PlayerJoinListener;
+import dev.niuex.dreamarch.Command.VoteCommand;
+import dev.niuex.dreamarch.Event.PlayerMovementListener;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.logging.Logger;
@@ -20,6 +21,7 @@ public final class DreamArch extends JavaPlugin {
         ArchCommand.init();
         VoteCommand.init();
         AreaList.init();
+        Vote.init();
         this.getServer().getPluginManager().registerEvents(new PlayerMovementListener(), this);
         this.getServer().getPluginManager().registerEvents(new PlayerJoinListener(), this);
 

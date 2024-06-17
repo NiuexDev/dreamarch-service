@@ -1,6 +1,6 @@
-package dev.niuex.dreamarch.Events;
+package dev.niuex.dreamarch.Event;
 
-import dev.niuex.dreamarch.Areas.PlayerArea;
+import dev.niuex.dreamarch.Arch.PlayerArea;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;

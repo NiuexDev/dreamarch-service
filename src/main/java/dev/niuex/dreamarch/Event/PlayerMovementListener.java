@@ -1,14 +1,11 @@
-package dev.niuex.dreamarch.Events;
+package dev.niuex.dreamarch.Event;
 
-import dev.niuex.dreamarch.Areas.Area;
-import dev.niuex.dreamarch.Areas.AreaList;
-import dev.niuex.dreamarch.Areas.PlayerArea;
-import org.bukkit.entity.Player;
+import dev.niuex.dreamarch.Arch.PlayerArea;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerMoveEvent;
 
-import static dev.niuex.dreamarch.Areas.PlayerArea.getTempId;
+import static dev.niuex.dreamarch.Arch.PlayerArea.getTempId;
 
 public class PlayerMovementListener implements Listener {
     @EventHandler

@@ -1,8 +1,8 @@
-package dev.niuex.dreamarch.Areas;
+package dev.niuex.dreamarch.Arch;
 
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import dev.niuex.dreamarch.DreamArch;
-import dev.niuex.dreamarch.Utils.Callback;
+import dev.niuex.dreamarch.Util.Callback;
 import org.bukkit.*;
 import org.bukkit.block.Biome;
 import org.bukkit.scheduler.BukkitScheduler;
@@ -202,7 +202,7 @@ public class Area {
     public void setLayer(String layer) { this.layer = layer; }
 
 
-    class FlatGenerator {
+    private class FlatGenerator {
         final int baseHeight;
         final Layer[] layerData;
         int x = pos[0];
@@ -255,15 +255,15 @@ public class Area {
             }
         }
     }
-}
 
-class Layer {
-    public Material id;
-    public int height;
+    private static class Layer {
+        public Material id;
+        public int height;
 
-    public Layer(String layer) {
-        String[] parts = layer.split("\\*");
-        height = Integer.parseInt(parts[0]);
-        id = Material.valueOf(parts[1].toUpperCase());
+        public Layer(String layer) {
+            String[] parts = layer.split("\\*");
+            height = Integer.parseInt(parts[0]);
+            id = Material.valueOf(parts[1].toUpperCase());
+        }
     }
 }
