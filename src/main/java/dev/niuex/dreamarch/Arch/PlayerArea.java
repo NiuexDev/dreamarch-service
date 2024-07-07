@@ -68,7 +68,7 @@ public class PlayerArea {
     public static int getTempId(Chunk chunk) {
         int x = chunk.getX();
         int z = chunk.getZ();
-        if ( x<0 || z<0 || z>Area.size-2 || x % Area.size == Area.size-1) return 0;
+        if ( x<0 || z<0 || z>Area.size-2 || x % Area.size == Area.innerSize) return 0;
         return x/Area.size;
     }
 

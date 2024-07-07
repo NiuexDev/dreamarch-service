@@ -12,11 +12,13 @@ import dev.niuex.dreamarch.Arch.AreaList;
 import dev.niuex.dreamarch.Arch.PlayerArea;
 import dev.niuex.dreamarch.Arch.Vote;
 import dev.niuex.dreamarch.DreamArch;
+import dev.niuex.dreamarch.TextTemplate.VoteTemplate;
 import dev.niuex.dreamarch.Util.CommandHelper;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.command.brigadier.Commands;
 import io.papermc.paper.plugin.lifecycle.event.LifecycleEventManager;
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
+import net.kyori.adventure.audience.Audience;
 import org.bukkit.plugin.Plugin;
 
 import java.util.List;
@@ -33,7 +35,6 @@ public class VoteCommand {
             LiteralCommandNode<CommandSourceStack> command = Commands.literal("vote")
                     .then(voteCommand)
                     .executes(VoteCommand::voteCommandWithNoArgs)
-                    .then(listCommand)
                     .then(adminCommand)
                     .build();
 
@@ -59,11 +60,11 @@ public class VoteCommand {
             .build();
 
     private static final LiteralCommandNode<CommandSourceStack> adminCommand = Commands.literal("admin")
-            .requires(cs -> cs.getSender().hasPermission("dreamarch.command.vote.admin"))
+            .requires(ctx -> ctx.getSender().hasPermission("dreamarch.command.vote.admin"))
             .then(Commands.literal("save")
                     .executes(ctx -> {
                         try {
-                            Vote.save();
+                            Vote.save("latest");
                         } catch (Vote.VoteException e) {
                             throw new CommandSyntaxException(null, e::getMessage);
                         }
@@ -99,36 +100,50 @@ public class VoteCommand {
             .build();
 
 
-    private static final ArgumentCommandNode<CommandSourceStack, Integer> voteCommand = Commands.argument("score", IntegerArgumentType.integer(1))
+    private static final ArgumentCommandNode<CommandSourceStack, Integer> voteCommand = Commands.argument("n1", IntegerArgumentType.integer(1))
             .executes(ctx -> {
                 CommandHelper.isPlayer(ctx);
-                Area area = AreaList.getArea(PlayerArea.getTempId(ctx.getSource().getExecutor().getChunk()));
+                 Area area = AreaList.getArea(PlayerArea.getTempId(ctx.getSource().getExecutor().getChunk()));
                 CommandHelper.existArea(area, "您未处在建筑区域内，请前往一个建筑区域。");
-                int score = ctx.getArgument("score", Integer.class);
+                int score = ctx.getArgument("n1", Integer.class);
+                if (score < 0 || score > 10) {
+                    throw new CommandSyntaxException(null, () -> "评分须在0-10分之间。");
+                }
                 Vote.vote(area.id, ctx.getSource().getExecutor().getUniqueId(), score);
-                ctx.getSource().getSender().sendPlainMessage("已评分。（" + score + "）");
+                ctx.getSource().getSender().sendPlainMessage("已为 ["+area.id+"]"+area.getName()+" 评"+score + "分。");
                 return Command.SINGLE_SUCCESS;
             })
-//            .then(Commands.argument("score", IntegerArgumentType.integer(0,10))
-//                    .executes(ctx -> {
-//                        CommandHelper.isPlayer(ctx);
-//                        int id = ctx.getArgument("id", Integer.class);
-//                        Area area = AreaList.getArea(id);
-//                        CommandHelper.existArea(area);
-//                        int score = ctx.getArgument("score", Integer.class);
-//                        Vote.vote(id, ctx.getSource().getExecutor().getUniqueId(), score);
-//                        ctx.getSource().getExecutor().sendPlainMessage(id + ", " + score);
-//                        return Command.SINGLE_SUCCESS;
-//                    })
-//                    .build()
-//            )
+            .then(Commands.argument("n2", IntegerArgumentType.integer(0,10))
+                    .executes(ctx -> {
+                        CommandHelper.isPlayer(ctx);
+                        Area area = AreaList.getArea(ctx.getArgument("n1", Integer.class));
+                        CommandHelper.existArea(area, "建筑不存在。");
+                        int score = ctx.getArgument("n2", Integer.class);
+                        Vote.vote(area.id, ctx.getSource().getExecutor().getUniqueId(), score);
+                        ctx.getSource().getSender().sendPlainMessage("已为 ["+area.id+"]"+area.getName()+" 评"+score + "分。");
+                        return Command.SINGLE_SUCCESS;
+                    })
+                    .build()
+            )
+            .then(Commands.literal("gui")
+                    .executes(ctx -> {
+                        CommandHelper.isPlayer(ctx);
+                        Area area = AreaList.getArea(ctx.getArgument("n1", Integer.class));
+                        CommandHelper.existArea(area, "建筑不存在。");
+
+                        Audience.audience(ctx.getSource().getSender()).sendMessage(VoteTemplate.render(area));
+                        return Command.SINGLE_SUCCESS;
+                    })
+                    .build()
+            )
             .build();
 
     private static int voteCommandWithNoArgs(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
         CommandHelper.isPlayer(ctx);
         Area area = AreaList.getArea(PlayerArea.getTempId(ctx.getSource().getExecutor().getChunk()));
         CommandHelper.existArea(area, "您未处在建筑区域内，请前往一个建筑区域。");
-        ctx.getSource().getSender().sendPlainMessage("点这里打分");
+
+        Audience.audience(ctx.getSource().getSender()).sendMessage(VoteTemplate.render(area));
         return Command.SINGLE_SUCCESS;
     }
 }

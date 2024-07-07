@@ -8,6 +8,9 @@ import com.mojang.brigadier.tree.LiteralCommandNode;
 import dev.niuex.dreamarch.Arch.AreaList;
 import dev.niuex.dreamarch.Arch.PlayerArea;
 import dev.niuex.dreamarch.DreamArch;
+import dev.niuex.dreamarch.TextTemplate.AreaInfoTemplate;
+import dev.niuex.dreamarch.TextTemplate.AreaListTemplate;
+import dev.niuex.dreamarch.TextTemplate.PagingTemplate;
 import dev.niuex.dreamarch.Util.CommandHelper;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.command.brigadier.Commands;
@@ -17,6 +20,7 @@ import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
 import io.papermc.paper.entity.TeleportFlag;
 import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.text.Component;
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.WeatherType;
 import org.bukkit.block.Biome;
@@ -28,6 +32,7 @@ import com.mojang.brigadier.context.CommandContext;
 import dev.niuex.dreamarch.Arch.Area;
 
 import java.util.List;
+import java.util.UUID;
 
 import static dev.niuex.dreamarch.Arch.PlayerArea.getTempId;
 import static dev.niuex.dreamarch.Arch.PlayerArea.setPlayerTimeWeather;
@@ -68,36 +73,49 @@ public class ArchCommand {
     }
 
     private static final LiteralCommandNode<CommandSourceStack> listCommand = Commands.literal("list")
-            .executes(ctx -> {
-                ctx.getSource().getSender().sendPlainMessage("已加载" + AreaList.getCount() + "个建筑区域。");
-                AreaList.getAreaList().forEach(area -> ctx.getSource().getSender().sendPlainMessage("[" + area.id + "]" + area.getName()));
-                return Command.SINGLE_SUCCESS;
-            })
+            .then(Commands.argument("id", IntegerArgumentType.integer(1))
+                    .executes(ctx -> {
+                        Area area = AreaList.getArea(ctx.getArgument("id", Integer.class));
+                        CommandHelper.existArea(area, "该建筑区域不存在。");
+                        Audience.audience(ctx.getSource().getSender()).sendMessage(AreaInfoTemplate.render(area));
+                        return Command.SINGLE_SUCCESS;
+                    })
+            )
+            .executes(ctx -> listCommandRunner(ctx, 1))
+            .then(Commands.literal("page").then(Commands.argument("page", IntegerArgumentType.integer(1))
+                    .executes(ctx -> listCommandRunner(ctx, ctx.getArgument("page", Integer.class)))
+            ))
             .build();
 
     private static final LiteralCommandNode<CommandSourceStack> initCommand = Commands.literal("init")
             .then(Commands.argument("id", IntegerArgumentType.integer(1))
                     .executes(ctx -> {
+                        CommandHelper.isPlayer(ctx);
                         Area area = AreaList.getArea(ctx.getArgument("id", Integer.class));
                         CommandHelper.existArea(area);
                         hasPermission(ctx, area);
+//                        Audience echo = Audience.audience(ctx.getSource().getSender());
+                        UUID uuid = ctx.getSource().getExecutor().getUniqueId();
                         area.init(
                                 (unused) -> {
-                                    ctx.getSource().getSender().sendPlainMessage("开始初始化建筑区域 [" + area.id + "]" + area.getName() + " 。");
+                                    Audience.audience(plugin.getServer().getPlayer(uuid)).sendMessage(Component.text("开始初始化建筑区域 [" + area.id + "]" + area.getName() + " 。"));
                                     return null;
                                 },
                                 (n) -> {
-                                    double rate = (double) n / ((Area.size - 1) * (Area.size - 1));
-                                    int progressChars = (int) Math.round(rate * 17);
-                                    StringBuilder progress = new StringBuilder();
-                                    for (int i = 0; i < 17; i++) {
-                                        progress.append(i < progressChars ? "=" : "-");
-                                    }
-                                    Audience.audience(ctx.getSource().getSender()).sendActionBar(Component.text("正在初始化 [" + progress + "]  " + (int) (rate*100) + "%"));
+                                    Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+                                        if (plugin.getServer().getPlayer(uuid) == null) return;
+                                        double rate = (double) n / Area.total;
+                                        int progressChars = (int) Math.round(rate * 17);
+                                        StringBuilder progress = new StringBuilder();
+                                        for (int i = 0; i < 17; i++) {
+                                            progress.append(i < progressChars ? "=" : "-");
+                                        }
+                                        Audience.audience(plugin.getServer().getPlayer(uuid)).sendActionBar(Component.text("正在初始化 [" + progress + "]  " + (int) (rate * 100) + "%"));
+                                    });
                                     return null;
                                 },
                                 (unused) -> {
-                                    ctx.getSource().getSender().sendPlainMessage("[" + area.id + "]" + area.getName() + "已初始化。");
+                                    Audience.audience(plugin.getServer().getPlayer(uuid)).sendMessage(Component.text("[" + area.id + "]" + area.getName() + "已初始化。"));
                                     return null;
                                 }
                         );
@@ -117,7 +135,7 @@ public class ArchCommand {
                             throw new CommandSyntaxException(null, () -> "该建筑区域未初始化。");
                         }
                         Player player = plugin.getServer().getPlayer(ctx.getSource().getExecutor().getUniqueId());
-                        Location location = area.getSpawnPos();
+                        Location location = area.getSpawnLocation();
                         location.setPitch(player.getPitch());
                         location.setYaw(player.getYaw());
                         player.teleportAsync(location, PlayerTeleportEvent.TeleportCause.COMMAND, TeleportFlag.Relative.YAW, TeleportFlag.Relative.PITCH);
@@ -317,4 +335,24 @@ public class ArchCommand {
         ctx.getSource().getExecutor().sendPlainMessage("已创建建筑区域 [" + area.id + "]" + area.getName());
         return Command.SINGLE_SUCCESS;
     }
+
+    private static int listCommandRunner(CommandContext<CommandSourceStack> ctx, int pageNumber) throws CommandSyntaxException {
+        int areaListCount = AreaList.getCount();
+        int maxPageNumber = (int) Math.ceil((double) areaListCount / 5);
+        if (pageNumber > maxPageNumber) {
+            throw new CommandSyntaxException(null, () -> "没有第"+pageNumber+"页。");
+        }
+        Component pageing = PagingTemplate.render(maxPageNumber, pageNumber);
+        Component areaListTemplate = AreaListTemplate.render(
+                AreaList.getAreaList()
+                        .subList(pageNumber*5-5, Math.min(areaListCount, pageNumber*5))
+                        .stream()
+                        .map(AreaInfoTemplate::render)
+                        .toArray(Component[]::new),
+                pageing
+        );
+        Audience.audience(ctx.getSource().getSender()).sendMessage(areaListTemplate);
+        return Command.SINGLE_SUCCESS;
+    }
+
 }
