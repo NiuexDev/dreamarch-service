@@ -14,7 +14,7 @@ public class Vote {
     public static void init() {
         voteList = new ArrayList<>();
 
-        File areaFolder = new File(plugin.getDataFolder(), "Area");
+        File areaFolder = new File(plugin.getDataFolder(), "Vote");
         if (!areaFolder.exists() || !areaFolder.isDirectory()) {
             areaFolder.mkdir();
         }
